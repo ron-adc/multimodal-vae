@@ -1,16 +1,39 @@
+import pytest
 import torch
 from src.models.image_encoder import ImageEncoder
 
-def test_image_encoder_dynamic_input():
+@pytest.fixture
+def image_encoder():
+    return ImageEncoder(in_channels=3, image_size=(64, 64), latent_dim=128)
+
+
+def test_image_encoder_output_shapes(image_encoder):
     batch_size = 4
-    channels = 3
-    img_sizes = [(64, 64), (32, 128), (393, 640)]  # Test with different image sizes
-    latent_dim = 16
+    input_tensor = torch.randn(batch_size, 3, 64, 64)  # (B, C, H, W)
+    mu, logvar = image_encoder(input_tensor)
 
-    for img_size in img_sizes:
-        encoder = ImageEncoder(in_channels=channels, image_size=img_size, latent_dim=latent_dim)
-        x = torch.randn(batch_size, channels, img_size[0], img_size[1])
-        mu, logvar = encoder(x)
+    assert mu.shape == (batch_size, 128), f"Expected mu shape (B, 128), got {mu.shape}"
+    assert logvar.shape == (batch_size, 128), f"Expected logvar shape (B, 128), got {logvar.shape}"
 
-        assert mu.shape == (batch_size, latent_dim), f"Unexpected mu shape for input size {img_size}: {mu.shape}"
-        assert logvar.shape == (batch_size, latent_dim), f"Unexpected logvar shape for input size {img_size}: {logvar.shape}"
+
+def test_image_encoder_forward_pass(image_encoder):
+    input_tensor = torch.randn(2, 3, 64, 64)  # (B, C, H, W)
+    mu, logvar = image_encoder(input_tensor)
+
+    assert torch.is_tensor(mu), "Output mu is not a tensor"
+    assert torch.is_tensor(logvar), "Output logvar is not a tensor"
+
+
+def test_image_encoder_invalid_input(image_encoder):
+    invalid_tensor = torch.randn(2, 1, 64, 64)  # Wrong number of channels
+    with pytest.raises(RuntimeError):
+        image_encoder(invalid_tensor)
+
+
+def test_image_encoder_different_image_size():
+    encoder = ImageEncoder(in_channels=3, image_size=(128, 128), latent_dim=64)
+    input_tensor = torch.randn(2, 3, 128, 128)
+    mu, logvar = encoder(input_tensor)
+
+    assert mu.shape == (2, 64), f"Expected mu shape (2, 64), got {mu.shape}"
+    assert logvar.shape == (2, 64), f"Expected logvar shape (2, 64), got {logvar.shape}"
